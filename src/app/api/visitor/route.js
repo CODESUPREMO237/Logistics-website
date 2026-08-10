@@ -6,7 +6,7 @@ import nodemailer from 'nodemailer';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 // Email rate-limiting: send at most 1 visitor email per 30 minutes
-const EMAIL_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+const EMAIL_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 let lastEmailSentAt = 0;
 
 // Escape for Telegram HTML parse_mode
