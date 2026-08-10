@@ -93,7 +93,7 @@ export default function Footer() {
                 <Headphones className="w-4 h-4" />
                 <span>+1 929 782 9204</span>
               </li>
-              <li>support@shiptrackglobal.com</li>
+              <li>support@shiptrackgl.com</li>
               <li className="pt-4">
                 <div className="flex gap-3">
                   <a 

@@ -29,10 +29,10 @@ export default function Support() {
             <h3 className="text-xl font-bold mb-2">Email Support</h3>
             <p className="text-gray-600 mb-4">Get in touch via email</p>
             <a
-              href="mailto:support@shiptrackglobal.com"
+              href="mailto:support@shiptrackgl.com"
               className="text-purple-600 hover:text-purple-700 font-semibold"
             >
-              support@shiptrackglobal.com
+              support@shiptrackgl.com
 
             </a>
           </div>
