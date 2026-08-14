@@ -24,12 +24,6 @@ const shipIcon = L.icon({
   iconAnchor: [19, 38],
 })
 
-const waypointIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/252/252025.png', // small dot icon
-  iconSize: [12, 12],
-  iconAnchor: [6, 6],
-})
-
 const safeParseFloat = (val) => {
   const parsed = parseFloat(val)
   return isNaN(parsed) ? null : parsed
@@ -37,40 +31,86 @@ const safeParseFloat = (val) => {
 
 /**
  * Adjust `lng` so the path from `refLng` to `lng` takes the shortest route,
- * crossing the antimeridian (±180°) when that's shorter.
- * e.g. Australia (135°E) → US (-95°W): returns -95+360=265 so the line goes
- * eastward across the Pacific instead of westward through Africa.
+ * crossing the antimeridian (±180°) when that is shorter.
  */
 function adjustLng(refLng, lng) {
-  let diff = lng - refLng
+  const diff = lng - refLng
   if (diff > 180) return lng - 360
   if (diff < -180) return lng + 360
   return lng
 }
 
 /**
- * Given an array of [lat, lng] points, adjust all longitudes so each segment
- * takes the shortest path (handles antimeridian crossings).
+ * Returns true when the shortest path between two longitudes crosses ±180°.
  */
-function adjustPath(points) {
-  if (!points || points.length === 0) return points
-  const result = [[points[0][0], points[0][1]]]
+function crossesAntimeridian(lng1, lng2) {
+  return Math.abs(lng2 - lng1) > 180
+}
+
+/**
+ * Split a path of [lat, lng] points into multiple sub-paths wherever the
+ * shortest route crosses the antimeridian (±180°).
+ * Each sub-path can be drawn as a normal Leaflet polyline.
+ *
+ * e.g. Australia (151°E) → US (-95°W) becomes:
+ *   Segment 1: [ausLat, 151] → [crossLat, 180]
+ *   Segment 2: [crossLat, -180] → [usLat, -95]
+ */
+function splitPathAtAntimeridian(points) {
+  if (!points || points.length < 2) return [points]
+
+  const paths = []
+  let currentPath = [points[0]]
+
   for (let i = 1; i < points.length; i++) {
-    const prevLng = result[i - 1][1]
-    result.push([points[i][0], adjustLng(prevLng, points[i][1])])
+    const [lat1, lng1] = currentPath[currentPath.length - 1]
+    const [lat2, lng2] = points[i]
+
+    if (crossesAntimeridian(lng1, lng2)) {
+      // Unwrap lng2 to determine the real crossing direction
+      const adjLng2 = (lng2 - lng1 > 180) ? lng2 - 360 : lng2 + 360
+      const crossLng = adjLng2 > lng1 ? 180 : -180
+      const t = (crossLng - lng1) / (adjLng2 - lng1)
+      const crossLat = lat1 + t * (lat2 - lat1)
+
+      // End this segment at the antimeridian edge
+      currentPath.push([crossLat, crossLng])
+      paths.push(currentPath)
+
+      // Start a new segment from the other edge
+      currentPath = [[crossLat, -crossLng], [lat2, lng2]]
+    } else {
+      currentPath.push([lat2, lng2])
+    }
   }
-  return result
+
+  paths.push(currentPath)
+  return paths
+}
+
+/**
+ * Replace all polylines inside a LayerGroup with new ones derived from
+ * `points`, splitting at the antimeridian where necessary.
+ */
+function setLayerGroupPolylines(layerGroup, points, options) {
+  layerGroup.clearLayers()
+  const segments = splitPathAtAntimeridian(points)
+  segments.forEach((seg) => {
+    if (seg && seg.length >= 2) {
+      L.polyline(seg, options).addTo(layerGroup)
+    }
+  })
 }
 
 export default function MapLeaflet({ lat, lng, originLat, originLng, destLat, destLng, status }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markerRef = useRef(null)
-  const routeRef = useRef(null)
-  const dashedRef = useRef(null)
+  const routeRef = useRef(null)   // L.LayerGroup for the solid blue route
+  const dashedRef = useRef(null)  // L.LayerGroup for the dashed red remaining route
   const animationRef = useRef(null)
-  const waypointsRef = useRef([]) // store [lat, lng] history
-  const waypointMarkersRef = useRef([]) // markers for history points
+  const waypointsRef = useRef([]) // [lat, lng] history
+  const waypointMarkersRef = useRef([])
   const prevStatusRef = useRef(status)
 
   const currentLat = safeParseFloat(lat)
@@ -80,62 +120,68 @@ export default function MapLeaflet({ lat, lng, originLat, originLng, destLat, de
   const destinationLat = safeParseFloat(destLat)
   const destinationLng = safeParseFloat(destLng)
 
+  const solidStyle = { color: '#0f76e6', weight: 4, opacity: 0.9 }
+  const dashedStyle = { color: 'red', weight: 2, dashArray: '6 8', opacity: 0.8 }
+
   // Utility easing for smooth deceleration (easeOutQuad)
   const easeOut = (t) => 1 - (1 - t) * (1 - t)
 
-  // Initialize map once
+  // --------------- Initialise map once ---------------
   useEffect(() => {
     if (mapRef.current && !mapInstanceRef.current) {
       const centerLat = currentLat || startLat || destinationLat || DEFAULT_CENTER_LAT
       const centerLng = currentLng || startLng || destinationLng || DEFAULT_CENTER_LNG
 
-      const map = L.map(mapRef.current, { zoomControl: true, worldCopyJump: true }).setView([centerLat, centerLng], 4)
+      const map = L.map(mapRef.current, { zoomControl: true }).setView([centerLat, centerLng], 4)
       mapInstanceRef.current = map
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
       }).addTo(map)
 
-      // Marker for current location
+      // Ship marker
       const marker = L.marker([currentLat || centerLat, currentLng || centerLng], { icon: shipIcon })
         .addTo(map)
         .bindPopup('Current Location')
       markerRef.current = marker
 
-      // Initial route (origin -> current) with antimeridian-aware path
-      const initPoints = adjustPath([
-        [startLat, startLng],
-        [currentLat || startLat, currentLng || startLng],
-      ])
-      const initialRoute = L.polyline(initPoints, { color: '#0f76e6', weight: 4, opacity: 0.9 }).addTo(map)
-      routeRef.current = initialRoute
+      // Solid route layer group (origin → current)
+      const routeGroup = L.layerGroup().addTo(map)
+      routeRef.current = routeGroup
+      setLayerGroupPolylines(routeGroup,
+        [[startLat, startLng], [currentLat || startLat, currentLng || startLng]],
+        solidStyle,
+      )
+
+      // Dashed route layer group (current → destination)
+      const dashedGroup = L.layerGroup().addTo(map)
+      dashedRef.current = dashedGroup
 
       // Destination marker (pulse)
       if (destinationLat && destinationLng) {
         L.marker([destinationLat, destinationLng], {
-          icon: L.icon.pulse({
-            iconSize: [18, 18],
-            color: 'red',
-            fillColor: 'red',
-          }),
+          icon: L.icon.pulse({ iconSize: [18, 18], color: 'red', fillColor: 'red' }),
         })
           .addTo(map)
           .bindPopup('Destination')
       }
 
-      // If bounds available, fit map (use adjusted path for correct bounding)
-      if (startLat && startLng && destinationLat && destinationLng) {
-        const adjDestLng = adjustLng(startLng, destinationLng)
-        const allLngs = [startLng, adjDestLng]
-        if (currentLng !== null) allLngs.push(adjustLng(startLng, currentLng))
-        const allLats = [startLat]
-        if (destinationLat) allLats.push(destinationLat)
-        if (currentLat !== null) allLats.push(currentLat)
-        const bounds = L.latLngBounds(
-          [Math.min(...allLats), Math.min(...allLngs)],
-          [Math.max(...allLats), Math.max(...allLngs)]
-        )
-        map.fitBounds(bounds, { padding: [50, 50] })
+      // Fit the view — handle antimeridian-crossing routes
+      if (startLat != null && startLng != null && destinationLat != null && destinationLng != null) {
+        if (crossesAntimeridian(startLng, destinationLng)) {
+          // For routes crossing the antimeridian, centre on the Pacific
+          const adjDestLng = adjustLng(startLng, destinationLng)
+          const midLat = (startLat + destinationLat) / 2
+          let midLng = (startLng + adjDestLng) / 2
+          if (midLng > 180) midLng -= 360
+          if (midLng < -180) midLng += 360
+          map.setView([midLat, midLng], 2)
+        } else {
+          map.fitBounds(
+            [[startLat, startLng], [destinationLat, destinationLng]],
+            { padding: [50, 50] },
+          )
+        }
       } else if (startLat && startLng) {
         map.setView([startLat, startLng], 8)
       } else if (destinationLat && destinationLng) {
@@ -143,22 +189,18 @@ export default function MapLeaflet({ lat, lng, originLat, originLng, destLat, de
       }
     }
 
-    // cleanup on unmount
+    // Cleanup on unmount
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
       if (mapInstanceRef.current) {
-        try {
-          mapInstanceRef.current.remove()
-        } catch (e) {
-          // ignore
-        }
+        try { mapInstanceRef.current.remove() } catch (e) { /* ignore */ }
       }
       mapInstanceRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // run once
 
-  // Helper to add waypoint marker
+  // --------------- Helpers ---------------
   const addWaypointMarker = (pos) => {
     const map = mapInstanceRef.current
     if (!map) return
@@ -166,39 +208,42 @@ export default function MapLeaflet({ lat, lng, originLat, originLng, destLat, de
     waypointMarkersRef.current.push(m)
   }
 
-  // Remove dashed line if present
   const clearDashed = () => {
-    if (dashedRef.current) {
-      try {
-        mapInstanceRef.current.removeLayer(dashedRef.current)
-      } catch (e) {}
-      dashedRef.current = null
-    }
+    if (dashedRef.current) dashedRef.current.clearLayers()
   }
 
-  /** Build the full adjusted path from origin through waypoints to a final point */
-  const buildAdjustedRoute = (finalLat, finalLng) => {
-    const raw = [[startLat, startLng], ...waypointsRef.current, [finalLat, finalLng]]
-    return adjustPath(raw)
+  /** Rebuild the solid route polyline(s) from origin through all waypoints to `finalPos` */
+  const updateRoute = (finalLat, finalLng) => {
+    if (!routeRef.current) return
+    const points = [[startLat, startLng], ...waypointsRef.current, [finalLat, finalLng]]
+    setLayerGroupPolylines(routeRef.current, points, solidStyle)
   }
 
-  // Animate marker using easing; updates route polyline as it moves
+  /** Draw / redraw the dashed remaining route from one point to another */
+  const updateDashed = (fromLat, fromLng, toLat, toLng) => {
+    if (!dashedRef.current) return
+    setLayerGroupPolylines(dashedRef.current, [[fromLat, fromLng], [toLat, toLng]], dashedStyle)
+  }
+
+  // --------------- Animation ---------------
   const animateMarker = (marker, fromLatLng, toLatLng, duration = 2000) => {
     const startTime = performance.now()
     if (animationRef.current) cancelAnimationFrame(animationRef.current)
 
-    // Pre-calculate the adjusted target longitude for smooth interpolation
+    // Use adjusted longitude for smooth interpolation across the antimeridian
     const adjToLng = adjustLng(fromLatLng.lng, toLatLng.lng)
 
     const animate = (time) => {
       const raw = Math.min((time - startTime) / duration, 1)
-      const progress = easeOut(raw) // ease out for deceleration
-      const lat = fromLatLng.lat + (toLatLng.lat - fromLatLng.lat) * progress
-      const lng = fromLatLng.lng + (adjToLng - fromLatLng.lng) * progress
-      marker.setLatLng([lat, lng])
+      const progress = easeOut(raw)
+      const animLat = fromLatLng.lat + (toLatLng.lat - fromLatLng.lat) * progress
+      let animLng = fromLatLng.lng + (adjToLng - fromLatLng.lng) * progress
+      // Normalise back to [-180, 180] for marker placement and path building
+      if (animLng > 180) animLng -= 360
+      if (animLng < -180) animLng += 360
 
-      // route = origin -> waypoints -> current animated point
-      if (routeRef.current) routeRef.current.setLatLngs(buildAdjustedRoute(lat, lng))
+      marker.setLatLng([animLat, animLng])
+      updateRoute(animLat, animLng)
 
       if (raw < 1) {
         animationRef.current = requestAnimationFrame(animate)
@@ -210,18 +255,7 @@ export default function MapLeaflet({ lat, lng, originLat, originLng, destLat, de
     animationRef.current = requestAnimationFrame(animate)
   }
 
-  /** Create a dashed polyline from current position to destination, antimeridian-aware */
-  const createDashedLine = (fromLat, fromLng, toLat, toLng, map) => {
-    const adjToLng = adjustLng(fromLng, toLng)
-    return L.polyline([[fromLat, fromLng], [toLat, adjToLng]], {
-      color: 'red',
-      weight: 2,
-      dashArray: '6 8',
-      opacity: 0.8,
-    }).addTo(map)
-  }
-
-  // Update marker when coords or status changes
+  // --------------- React to coordinate / status changes ---------------
   useEffect(() => {
     const marker = markerRef.current
     const map = mapInstanceRef.current
@@ -230,30 +264,23 @@ export default function MapLeaflet({ lat, lng, originLat, originLng, destLat, de
     const isMoving = status === 'In Transit'
     const prevStatus = prevStatusRef.current
 
-    // When status changed from moving -> stopped, do a short deceleration animation to final pos
+    // --- Ship just stopped (In Transit → anything else) ---
     const justStopped = prevStatus === 'In Transit' && !isMoving
-
     if (justStopped) {
-      // finish with a short decel then freeze
       const from = marker.getLatLng()
       const to = L.latLng(currentLat, currentLng)
-      // push one last waypoint target
       waypointsRef.current.push([to.lat, to.lng])
       addWaypointMarker([to.lat, to.lng])
       animateMarker(marker, from, to, 1200)
 
-      // after decel, freeze marker and show dashed route to destination
       setTimeout(() => {
         if (animationRef.current) cancelAnimationFrame(animationRef.current)
         marker.setLatLng([currentLat, currentLng])
-        if (routeRef.current) {
-          routeRef.current.setLatLngs(adjustPath([[startLat, startLng], ...waypointsRef.current]))
-        }
+        updateRoute(currentLat, currentLng)
         clearDashed()
         if (destinationLat && destinationLng) {
-          dashedRef.current = createDashedLine(currentLat, currentLng, destinationLat, destinationLng, map)
+          updateDashed(currentLat, currentLng, destinationLat, destinationLng)
         }
-        // Auto zoom if delivered
         if (status === 'Delivered') {
           map.flyTo([currentLat, currentLng], 10, { duration: 1.2 })
         }
@@ -263,30 +290,24 @@ export default function MapLeaflet({ lat, lng, originLat, originLng, destLat, de
       return
     }
 
-    // Not moving (initially stopped or on hold/cancelled/delivered)
+    // --- Not moving (idle / on hold / cancelled / delivered) ---
     if (!isMoving) {
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
 
-      // Only add waypoint if new position differs significantly from last
       const last = waypointsRef.current[waypointsRef.current.length - 1]
-      const lastLat = last?.[0]
-      const lastLng = last?.[1]
-      if (!last || Math.abs(lastLat - currentLat) > 1e-6 || Math.abs(lastLng - currentLng) > 1e-6) {
+      if (!last || Math.abs(last[0] - currentLat) > 1e-6 || Math.abs(last[1] - currentLng) > 1e-6) {
         waypointsRef.current.push([currentLat, currentLng])
         addWaypointMarker([currentLat, currentLng])
       }
 
       marker.setLatLng([currentLat, currentLng])
-      if (routeRef.current) {
-        routeRef.current.setLatLngs(adjustPath([[startLat, startLng], ...waypointsRef.current]))
-      }
+      updateRoute(currentLat, currentLng)
 
       clearDashed()
       if (destinationLat && destinationLng) {
-        dashedRef.current = createDashedLine(currentLat, currentLng, destinationLat, destinationLng, map)
+        updateDashed(currentLat, currentLng, destinationLat, destinationLng)
       }
 
-      // Auto-zoom on delivered
       if (status === 'Delivered') {
         setTimeout(() => {
           if (mapInstanceRef.current) {
@@ -299,27 +320,19 @@ export default function MapLeaflet({ lat, lng, originLat, originLng, destLat, de
       return
     }
 
-    // If we are here, the ship is moving (In Transit)
-    // remove any dashed preview to destination (we have live route)
+    // --- In Transit (moving) ---
     clearDashed()
 
-    // Add new waypoint
     const to = L.latLng(currentLat, currentLng)
     const from = marker.getLatLng()
-    // only push waypoint if significantly different to avoid duplicates
     const last = waypointsRef.current[waypointsRef.current.length - 1]
     if (!last || Math.abs(last[0] - to.lat) > 1e-6 || Math.abs(last[1] - to.lng) > 1e-6) {
       waypointsRef.current.push([to.lat, to.lng])
       addWaypointMarker([to.lat, to.lng])
     }
 
-    // animate smoothly
     animateMarker(marker, from, to, 8000)
-
-    // update polyline full path
-    if (routeRef.current) {
-      routeRef.current.setLatLngs(adjustPath([[startLat, startLng], ...waypointsRef.current]))
-    }
+    updateRoute(currentLat, currentLng)
 
     prevStatusRef.current = status
   }, [currentLat, currentLng, status, startLat, startLng, destinationLat, destinationLng])
