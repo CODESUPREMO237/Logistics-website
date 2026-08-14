@@ -45,7 +45,16 @@ export async function GET(request, { params }) {
 
     const progress = shipment.progress ?? 0;
     const currentLat = originLat + progress * (destLat - originLat);
-    const currentLng = originLng + progress * (destLng - originLng);
+
+    // For longitude, take the shortest path — if the difference is > 180°,
+    // the route crosses the antimeridian (e.g. Australia → US via Pacific)
+    let adjustedDestLng = destLng;
+    if (destLng - originLng > 180) adjustedDestLng -= 360;
+    if (destLng - originLng < -180) adjustedDestLng += 360;
+    let currentLng = originLng + progress * (adjustedDestLng - originLng);
+    // Normalise back to [-180, 180]
+    if (currentLng > 180) currentLng -= 360;
+    if (currentLng < -180) currentLng += 360;
 
     return NextResponse.json({
       ...shipment,

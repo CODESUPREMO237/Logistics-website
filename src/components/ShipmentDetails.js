@@ -289,7 +289,7 @@ export default function ShipmentDetails({ initialShipment, isAdmin = false }) {
             <MapPin className="w-4 h-4" style={{ color: 'var(--brand-primary)' }} />
             <span className="font-semibold text-gray-900 text-sm">Live Tracking Map</span>
           </div>
-          <div className="h-72">
+          <div className="h-96">
             <MapLeaflet
               lat={location.lat}
               lng={location.lng}
