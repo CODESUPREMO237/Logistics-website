@@ -937,13 +937,28 @@ export default function AdminDashboard() {
                             <p className="text-xs text-blue-600 font-semibold mb-1">Payment Mode</p>
                             <select
                               className="w-full bg-white border-0 rounded-lg px-3 py-2 text-gray-900 font-medium focus:ring-2 focus:ring-blue-500"
-                              value={shipment.payment_mode || "PAYPAL"}
-                              onChange={(e) => updateShipmentField(shipment.code, "payment_mode", e.target.value)}
+                              value={paymentModes.includes(shipment.payment_mode) ? shipment.payment_mode : "OTHER"}
+                              onChange={(e) => {
+                                if (e.target.value === "OTHER") {
+                                  updateShipmentField(shipment.code, "payment_mode", "");
+                                } else {
+                                  updateShipmentField(shipment.code, "payment_mode", e.target.value);
+                                }
+                              }}
                             >
                               {paymentModes.map((mode) => (
                                 <option key={mode} value={mode}>{mode}</option>
                               ))}
+                              <option value="OTHER">OTHER (type your own)</option>
                             </select>
+                            {!paymentModes.includes(shipment.payment_mode) && (
+                              <input
+                                className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 mt-2 text-gray-900 font-medium focus:ring-2 focus:ring-blue-500 text-sm"
+                                placeholder="Enter custom payment method"
+                                value={shipment.payment_mode || ""}
+                                onChange={(e) => updateShipmentField(shipment.code, "payment_mode", e.target.value)}
+                              />
+                            )}
                           </div>
                         </div>
 
@@ -1142,11 +1157,12 @@ export default function AdminDashboard() {
                                 />
                               </div>
                               <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">Phone</label>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
                                 <input
+                                  type="email"
                                   className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                                  value={getEditField(shipment.code, "shipper_phone", shipment.shipper_phone || "")}
-                                  onChange={(e) => setEditField(shipment.code, "shipper_phone", e.target.value)}
+                                  value={getEditField(shipment.code, "shipper_email", shipment.shipper_email || "")}
+                                  onChange={(e) => setEditField(shipment.code, "shipper_email", e.target.value)}
                                 />
                               </div>
                             </div>

@@ -96,7 +96,7 @@ export async function POST(req) {
       // Shipper/Receiver
       shipper_name: data.shipper_name || '',
       shipper_address: data.shipper_address || '',
-      shipper_phone: data.shipper_phone || null,
+      shipper_email: data.shipper_email || null,
       receiver_name: data.receiver_name || '',
       receiver_address: data.receiver_address || '',
       receiver_phone: data.receiver_phone || null,

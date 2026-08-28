@@ -116,7 +116,7 @@ const EMPTY_FORM = {
   dest_lng: null,
   estimated_hours: "",
   shipper_name: "",
-  shipper_phone: "",
+  shipper_email: "",
   shipper_address: "",
   receiver_name: "",
   receiver_phone: "",
@@ -714,7 +714,13 @@ export default function AdminForm({ onSuccess }) {
               <CreditCard className="w-4 h-4 inline mr-1" />
               Payment Mode *
             </label>
-            <select className={inputClass} name="payment_mode" value={form.payment_mode} onChange={handleChange}>
+            <select className={inputClass} name="payment_mode" value={["PAYPAL","CREDIT CARD","CASH APP","ZELLE","VENMO","APPLE PAY","BITCOIN","BANK TRANSFER"].includes(form.payment_mode) ? form.payment_mode : "OTHER"} onChange={(e) => {
+              if (e.target.value === "OTHER") {
+                setForm(prev => ({ ...prev, payment_mode: "" }));
+              } else {
+                setForm(prev => ({ ...prev, payment_mode: e.target.value }));
+              }
+            }}>
               <option>PAYPAL</option>
               <option>CREDIT CARD</option>
               <option>CASH APP</option>
@@ -723,7 +729,17 @@ export default function AdminForm({ onSuccess }) {
               <option>APPLE PAY</option>
               <option>BITCOIN</option>
               <option>BANK TRANSFER</option>
+              <option value="OTHER">OTHER (type your own)</option>
             </select>
+            {!["PAYPAL","CREDIT CARD","CASH APP","ZELLE","VENMO","APPLE PAY","BITCOIN","BANK TRANSFER"].includes(form.payment_mode) && (
+              <input
+                className={`${inputClass} mt-2`}
+                name="payment_mode"
+                placeholder="Enter custom payment method"
+                value={form.payment_mode}
+                onChange={handleChange}
+              />
+            )}
           </div>
 
           <div>
@@ -994,12 +1010,13 @@ export default function AdminForm({ onSuccess }) {
           </div>
 
           <div>
-            <label className={labelClass}>Shipper Phone *</label>
+            <label className={labelClass}>Shipper Email *</label>
             <input 
+              type="email"
               className={inputClass} 
-              name="shipper_phone" 
-              placeholder="+1 234 567 8900" 
-              value={form.shipper_phone} 
+              name="shipper_email" 
+              placeholder="shipper@example.com" 
+              value={form.shipper_email} 
               onChange={handleChange} 
             />
           </div>

@@ -337,7 +337,7 @@ export default function ShipmentDetails({ initialShipment, isAdmin = false }) {
                 </div>
                 <p className="text-gray-900 font-medium text-sm">{fmt(shipment.shipper_name)}</p>
                 <p className="text-gray-500 text-xs mt-1 flex items-start gap-1.5"><MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />{fmt(shipment.shipper_address)}</p>
-                <p className="text-gray-500 text-xs mt-1 flex items-center gap-1.5"><Phone className="w-3 h-3" />{fmt(shipment.shipper_phone)}</p>
+                <p className="text-gray-500 text-xs mt-1 flex items-center gap-1.5"><Mail className="w-3 h-3" />{fmt(shipment.shipper_email)}</p>
               </div>
 
               <div className="bg-white rounded-lg border border-gray-200 p-4">

@@ -22,7 +22,7 @@ export async function PATCH(req, { params }) {
       // Pricing & Finance
       'total_cost', 'currency', 'payment_status', 'declared_value', 'tax_amount', 'insurance_value',
       // Shipper & Receiver
-      'shipper_name', 'shipper_address', 'shipper_phone',
+      'shipper_name', 'shipper_address', 'shipper_email',
       'receiver_name', 'receiver_address', 'receiver_phone', 'receiver_email',
       // Origin & Destination
       'origin_city', 'dest_city',
