@@ -1330,9 +1330,8 @@ export default function AdminDashboard() {
                           <button
                             className="mt-2 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2 rounded-lg hover:shadow-lg transition duration-200"
                             onClick={() => {
-                              const comment = commentInputs[shipment.code]?.trim();
-                              if (!comment) return;
-                              updateShipmentField(shipment.code, "admin_comment", comment);
+                              const comment = commentInputs[shipment.code] ?? "";
+                              updateShipmentField(shipment.code, "admin_comment", comment.trim());
                             }}
                           >
                             Save & Send Email
