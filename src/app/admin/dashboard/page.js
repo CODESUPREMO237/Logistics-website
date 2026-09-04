@@ -1355,7 +1355,7 @@ export default function AdminDashboard() {
                               <div key={idx} className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                                   <input
-                                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
                                     placeholder="Piece Type"
                                     value={p.piece_type || ""}
                                     onChange={(e) =>
@@ -1363,7 +1363,7 @@ export default function AdminDashboard() {
                                     }
                                   />
                                   <input
-                                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
                                     placeholder="Description"
                                     value={p.description || ""}
                                     onChange={(e) =>
@@ -1372,7 +1372,7 @@ export default function AdminDashboard() {
                                   />
                                   <input
                                     type="number"
-                                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
                                     placeholder="Qty"
                                     value={p.qty || 1}
                                     onChange={(e) =>
@@ -1381,7 +1381,7 @@ export default function AdminDashboard() {
                                   />
                                   <input
                                     type="number"
-                                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900"
                                     placeholder="Weight (kg)"
                                     value={p.weight_kg || 0}
                                     onChange={(e) =>
@@ -1416,15 +1416,17 @@ export default function AdminDashboard() {
                               type="number"
                               step="0.000001"
                               id={`lat-${shipment.code}`}
-                              className="flex-1 border border-gray-300 rounded-lg px-4 py-2 bg-white"
+                              className="flex-1 border border-gray-300 rounded-lg px-4 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-purple-500"
                               placeholder="Latitude"
+                              defaultValue={shipment.current_lat || ""}
                             />
                             <input
                               type="number"
                               step="0.000001"
                               id={`lng-${shipment.code}`}
-                              className="flex-1 border border-gray-300 rounded-lg px-4 py-2 bg-white"
+                              className="flex-1 border border-gray-300 rounded-lg px-4 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-purple-500"
                               placeholder="Longitude"
+                              defaultValue={shipment.current_lng || ""}
                             />
                             <button
                               onClick={() => {
