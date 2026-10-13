@@ -814,7 +814,6 @@ export default function AdminForm({ onSuccess }) {
                   setForm({
                     ...form,
                     expected_delivery_datetime: e.target.value,
-                    delivery_datetime: e.target.value,
                   })
                 }
               />

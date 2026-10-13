@@ -70,9 +70,15 @@ export async function PATCH(req, { params }) {
     const { data, error } = await supabaseAdmin
       .from('shipments')
       .update(payload)
-      .eq('code', code.toUpperCase());
+      .eq('code', code.toUpperCase())
+      .eq('owner_id', authResult.user.id) // only the owning admin can edit
+      .select('id');
 
     if (error) throw error;
+
+    if (!data || data.length === 0) {
+      return NextResponse.json({ error: 'Shipment not found' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true, data });
   } catch (err) {

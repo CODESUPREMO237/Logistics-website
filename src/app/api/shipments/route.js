@@ -72,6 +72,8 @@ export async function POST(req) {
 
     // Build comprehensive payload with all new fields
     const payload = {
+      // Ownership: this shipment belongs to the admin who creates it
+      owner_id: authResult.user.id,
       code,
       
       // Basic Info
@@ -207,6 +209,7 @@ export async function GET(req) {
     const { data, error } = await supabaseAdmin
       .from('shipments')
       .select('*')
+      .eq('owner_id', authResult.user.id) // each admin only sees their own shipments
       .order('created_at', { ascending: false })
 
     if (error) throw error

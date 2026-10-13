@@ -102,6 +102,10 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ error: 'Shipment not found' }, { status: 404 });
     }
 
+    if (shipment.owner_id !== authResult.user.id) {
+      return NextResponse.json({ error: 'Shipment not found' }, { status: 404 });
+    }
+
     if (!shipment.id) {
       console.error('Shipment ID is missing, cannot update');
       return NextResponse.json({ error: 'Shipment ID missing' }, { status: 400 });
