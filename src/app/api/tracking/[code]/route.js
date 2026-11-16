@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/adminAuth';
 import { supabaseAdmin } from '@/lib/supabaseClient';
-import { sendAdminCommentEmail } from '@/lib/email';
+// NOTE: email is dynamically imported in PATCH only — avoids loading nodemailer on GET requests
 
 const safeParseFloat = (val) =>
   val === null || val === undefined || val === '' ? 0 : parseFloat(val);
@@ -141,6 +141,7 @@ export async function PATCH(request, { params }) {
       shipment.receiver_email
     ) {
       try {
+        const { sendAdminCommentEmail } = await import('@/lib/email');
         await sendAdminCommentEmail(shipment.receiver_email, code, updateData.admin_comment);
         console.log(`Admin comment email sent to ${shipment.receiver_email}`);
       } catch (err) {

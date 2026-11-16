@@ -132,6 +132,7 @@ export default function ShipmentDetails({ initialShipment, isAdmin = false }) {
   const [showMoreDetails, setShowMoreDetails] = useState(false)
   const mounted = useRef(false)
   const pollingIntervalRef = useRef(null)
+  const pollingRef = useRef(true)
 
   const fmt = (v) => (v === null || v === undefined || v === '' ? '—' : v)
 
@@ -171,24 +172,28 @@ export default function ShipmentDetails({ initialShipment, isAdmin = false }) {
         const statusStopsMovement = ['On Hold', 'Cancelled', 'Delivered'].includes(data.status)
         setLocation({ lat: data.current_lat ?? null, lng: data.current_lng ?? null })
         if (statusStopsMovement) {
+          pollingRef.current = false
           setPolling(false)
+          clearInterval(pollingIntervalRef.current)
+          pollingIntervalRef.current = null
         }
       } catch (err) {
         console.error('Polling error', err)
       }
     }
 
-    fetchShipment()
+    // Don't re-fetch immediately — we already have initialShipment data
+    pollingRef.current = true
     pollingIntervalRef.current = setInterval(() => {
-      if (polling) fetchShipment()
-    }, 3000)
+      if (pollingRef.current) fetchShipment()
+    }, 30000)
 
     return () => {
       mounted.current = false
       clearInterval(pollingIntervalRef.current)
       pollingIntervalRef.current = null
     }
-  }, [initialShipment?.code, polling])
+  }, [initialShipment?.code])
 
   const handleNotifySubmit = async (e) => {
     e.preventDefault()
